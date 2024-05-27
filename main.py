@@ -1,3 +1,11 @@
+#Author: Samuel Casto
+#Description: Streamlit site that gets betting information from TheOdds API and displays it for 
+#   users to make more beneficial bets for themselves.
+#Goals: 
+#   1. Add some kind of cache function for the league data page to limit API calls
+#   2. Add more scores check functionality and maybe a way to limit the API calls
+#   3. Clean up word choice across site
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -70,6 +78,10 @@ RADIO_BOOKS = ['BetMGM','DraftKings','FanDuel','Caesar\'s']
 #Multiselect box options for odds to find
 MARKET_SELECT = ['h2h','spreads','totals']
 
+#Table columns for NFL League Data
+TABLE_COLUMNS = ['h2h price','spread price','spread value','over value','under value','over/under price']
+
+
 #Every comment after this will be a feature needed to satisfy requirements for the app assignment
 
 #Map element
@@ -92,8 +104,8 @@ def main():
     
 
     #Creating sidebar to select flight search option
-    sidebar = ["Specific NFL Team Data","NFL League Data","Site Info","Roadmap","Scores Check"]
-    category = st.sidebar.selectbox("Options",sidebar,index=2)
+    sidebar = ["Specific NFL Team Data","NFL League Data","Scores Check","Site Info","Roadmap",]
+    category = st.sidebar.selectbox("Options",sidebar,index=3)
 
 
     if(category == 'Specific NFL Team Data'):
@@ -210,7 +222,7 @@ def main():
             #Formatting the table
             table = table.transpose()
             table.index.name = selectedTeam
-            table.set_axis(RADIO_BOOKS,axis=1,inplace=True)
+            table.set_axis(RADIO_BOOKS,axis=1,)
             #writing the table
             st.dataframe(data=table,use_container_width=True)
 
@@ -329,12 +341,23 @@ def main():
             
             #A table needs to be created using a dataFrame and the dataFrame is going to have several 
             #different sportsbooks data for the team selected
+            #REFERENCE FOR THIS TABLE COLUMNS
+            '''0 = h2h price
+            1 = spread price
+            2 = spread value
+            3 = over value 
+            4 = under value
+            5 = over/under price'''
             #The table uses the list of TEAMS as an index and the markets for columns while the data
             #will be the price value from the JSON document for the team
             table = pd.DataFrame(data=TEAMS_PRICE)
+            #Swap the team names to be the index
             table = table.transpose()
+            #Add a name to the index in the top left corner of the eventual table
             table.index.name = "Team"
-            table.set_axis(TEAMS_COLUMNS,axis=1,inplace=True)
+            #Team names are added now we need to remove unnessecary columns and 
+            table.columns = TABLE_COLUMNS
+            
             
             #and then we need to find out a way to inlude text input using one of the other API endpoints
             st.write(f"Bookmaker results for {book}")
@@ -406,49 +429,16 @@ def main():
                     ''')
          
         
-        #API information and slider 
-        #Slider input to calculate number of requests for our API for funsies
+        #API information
         st.subheader("API Information",divider="blue")
         st.write('''The API used to make this app was the odds-api. You can check out their 
                  website at: [https://the-odds-api.com/.](https://the-odds-api.com/) I would like 
                  to take the time to thank them because using this API has been really fun and a 
                  great learning experience. Just a heads up, this API can be costly with the number
                  of calls you might need to make given their formula and the other ways to use their
-                 API as well as there being a hard limit on the free plan. Use the slider below to 
-                 see how many API calls you use based on the amount of markets selected for this site!''')
-        input = st.number_input(label="Choose how many markets:",format="%d",min_value=1,step=1)
-        check = st.button("Check API Cost")
-        if input and check:
-            cost = input
-            st.write(f"The cost is easy to calculate for this app because we are only doing one region, so the cost is: {cost}")
-            st.write("The normal formula for these API calls are number of markets * number of regions.")
-        #Number input to get scores from X days ago 
-        st.subheader("Get Recent Scores",divider="blue")
-        st.write('''As a thanks for reading this far, you can select the number of days to go back 
-                 and this site will return the list of completed NFL game scores from that many days ago.''')
-        selection = st.select_slider("How many days back to go:",options=[1,2,3],value=1)
-        selCheck = st.button("Check Scores")
-        if selCheck and selection:
-            callURL = f'https://api.the-odds-api.com/v4/sports/{SPORT}/scores/?daysFrom={selection}&apiKey={API_KEY}'
-            callData = requests.get(callURL).json()
-            #iterating over the response to build our dataframe to display
-            tempTable = {}
-            scores = pd.DataFrame(tempTable)
-            for id in callData:
-                #st.write(id['completed'])
-                #Only returning completed games
-                if id['completed']:
-                    homeTeam = id['home_team']
-                    awayTeam = id['away_team']
-                    homeScore = id['scores'][1]['score']
-                    awayScore = id['scores'][0]['score']
-
-                    newRow = {'Home Team':homeTeam,'Home Score':homeScore,'Away Score':awayScore,'Away Team':awayTeam}
-                    scores = scores.append(newRow, ignore_index=True)
-            scores['Home Score'] = pd.to_numeric(scores['Home Score'])
-            scores['Away Score'] = pd.to_numeric(scores['Away Score'])
-            styled_scores = scores.style.apply(highlight_max, subset=['Home Score', 'Away Score'], axis=1)
-            st.dataframe(styled_scores,use_container_width=True,height=300,hide_index=True)        
+                 API as well as there being a hard limit on the free plan. The normal formula for 
+                 these API calls are number of markets * number of regions. ''')
+             
         #End of Site Info Category
         #
         #
@@ -473,6 +463,29 @@ def main():
         st.write('''The API call currently being used only retrieves NFL scores from at most, 
                  the past 3 days. I will look into using a different API call if possible or
                  if I should use a different API altogether to get these scores.''')
+        stop = False
+        selCheck = st.button("Check Scores")
+        if selCheck and stop:
+            callURL = f'https://api.the-odds-api.com/v4/sports/{SPORT}/scores/?daysFrom=3&apiKey={API_KEY}'
+            callData = requests.get(callURL).json()
+            #iterating over the response to build our dataframe to display
+            tempTable = {}
+            scores = pd.DataFrame(tempTable)
+            for id in callData:
+                #st.write(id['completed'])
+                #Only returning completed games
+                if id['completed']:
+                    homeTeam = id['home_team']
+                    awayTeam = id['away_team']
+                    homeScore = id['scores'][1]['score']
+                    awayScore = id['scores'][0]['score']
+
+                    newRow = {'Home Team':homeTeam,'Home Score':homeScore,'Away Score':awayScore,'Away Team':awayTeam}
+                    scores = scores.append(newRow, ignore_index=True)
+            scores['Home Score'] = pd.to_numeric(scores['Home Score'])
+            scores['Away Score'] = pd.to_numeric(scores['Away Score'])
+            styled_scores = scores.style.apply(highlight_max, subset=['Home Score', 'Away Score'], axis=1)
+            st.dataframe(styled_scores,use_container_width=True,height=300,hide_index=True)   
         
         #End of Scores Check Category
         #
